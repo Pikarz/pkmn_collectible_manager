@@ -1,0 +1,405 @@
+--TODO: tags table that will be put in the description of the listing
+-- COMMENTS:
+-- I need to think if I should create indexes on specific columns
+-- Think if any column might use default values
+-- unnumbered jap must have a fixed number as card number
+
+-- TABLES
+-- AlternateVersion table
+CREATE TABLE AlternateVersion (
+    version MString PRIMARY KEY
+);
+
+-- Generation table
+CREATE TABLE Generation (
+    name MString PRIMARY KEY
+);
+
+-- CardExpansion table
+-- TODO: add a row for 'custom cards'
+CREATE TABLE CardExpansion (
+    id Sstring PRIMARY KEY,
+    name Mstring NOT NULL,
+    release_date DATE NOT NULL,
+    generation MString NOT NULL,
+    super_expansion Sstring,
+    icon BYTEA, -- may be null since some sets don't have it
+    symbol BYTEA NOT NULL,
+    UNIQUE (name),
+    FOREIGN KEY (generation) REFERENCES Generation(name),
+    FOREIGN KEY (super_expansion) REFERENCES CardExpansion(id)
+);
+
+-- TODO: cannot be of jap language
+CREATE TABLE CardExpansionWorld (
+    id Sstring PRIMARY KEY,
+    italian_name Mstring NOT NULL,
+    UNIQUE (italian_name),
+    FOREIGN KEY (id) REFERENCES CardExpansion(id)
+);
+
+-- TODO: constraint: cards of japanese language are necessarily of an expansion cardexpansionjap
+CREATE TABLE CardExpansionJap (
+    id Sstring PRIMARY KEY,
+    japanese_name Mstring NOT NULL,
+    language Language NOT NULL DEFAULT 'JAP',
+    FOREIGN KEY (id) REFERENCES CardExpansion(id),
+    FOREIGN KEY (language) REFERENCES CardLanguage(language)
+);
+
+-- CardLanguage table
+CREATE TABLE CardLanguage (
+    language Language PRIMARY KEY
+);
+
+CREATE TABLE AllowedExpansionLanguage (
+    expansion Sstring NOT NULL,
+    language Language NOT NULL,
+    PRIMARY KEY (expansion, language),
+    FOREIGN KEY (expansion) REFERENCES CardExpansionWorld(id),
+    FOREIGN KEY (language) REFERENCES CardLanguage(language)
+);
+
+-- Rarity table
+CREATE TABLE Rarity (
+    name SString PRIMARY KEY
+);
+
+-- CardType table
+CREATE TABLE CardType (
+    number CardNumber NOT NULL, -- create an index on this column?
+    -- FOR UNP CARDS I SHOULD MAKE A FUNCTION THAT AUTOMATICALLY CREATES A CUSTOM NUMBER (ie UNP_DRAGONITE_01) IF IT'S UNP
+    expansion Sstring NOT NULL,
+    PRIMARY KEY (number, expansion),
+    name SString NOT NULL,
+    rarity SString NOT NULL,
+    pic BYTEA, -- may be null due to lack of information
+    FOREIGN KEY (rarity) REFERENCES Rarity(name) ON UPDATE CASCADE,
+    FOREIGN KEY (expansion) REFERENCES CardExpansion(id)
+);
+
+CREATE TABLE versionCardType (
+    version MString NOT NULL,
+    card_number CardNumber NOT NULL,
+    card_expansion SString NOT NULL,
+    PRIMARY KEY (card_number, card_expansion, version),
+    FOREIGN KEY (card_number, card_expansion) REFERENCES CardType(number, expansion),
+    FOREIGN KEY (version) REFERENCES AlternateVersion(version) ON UPDATE CASCADE
+);
+
+-- Counterparty table. Models buyers and sellers
+CREATE TABLE Counterparty (
+    name Sstring PRIMARY KEY,
+    comment Lstring
+);
+
+-- Country table. used for the grading companies
+CREATE TABLE Country (
+    name SString PRIMARY KEY
+);
+
+-- GradingCompany table
+CREATE TABLE GradingCompany (
+    name SString PRIMARY KEY,
+    country Sstring NOT NULL,
+    FOREIGN KEY (country) REFERENCES Country(name)
+);
+
+
+-- For future collectable stuff
+CREATE TABLE Collectable (
+    id SERIAL PRIMARY KEY,
+    in_collection BOOLEAN NOT NULL,
+    date_acquired DATE DEFAULT NOW() NOT NULL,
+    is_arrived BOOLEAN NOT NULL,
+    comment LString
+);
+
+-- CardInstance table
+CREATE TABLE CardInstance (
+    card INTEGER PRIMARY KEY,
+    cardtype_number CardNumber NOT NULL,
+    cardtype_expansion SString NOT NULL,
+    language Language NOT NULL,
+    condition CardCondition NOT NULL,
+    version MString DEFAULT 'default' NOT NULL,
+    inked BOOLEAN NOT NULL DEFAULT False,
+    CONSTRAINT check_inked_poor CHECK (inked = FALSE OR (condition = 'PO')),
+    FOREIGN KEY (card) REFERENCES Collectable(id),
+    FOREIGN KEY (cardtype_number, cardtype_expansion, version) REFERENCES versionCardType(card_number, card_expansion, version), -- checks the correct version of the card
+    -- FOREIGN KEY (cardtype_expansion, language) REFERENCES expansionLanguage(expansion, language) -- checks the correct language assuming there doesn't exist a card that has a language different from another card within the same expansion. Wrong assumption, thus it is commented
+    FOREIGN KEY (language) REFERENCES CardLanguage(language)
+);
+
+-- GradedCollectable table
+CREATE TABLE GradedCollectable (
+    id SERIAL PRIMARY KEY,
+    collectable INTEGER NOT NULL,
+    vote GradingVote NOT NULL,
+    company Sstring NOT NULL,
+    date_grading DATE,
+    igrade BOOLEAN NOT NULL, -- models if the user graded the collectable
+    date_case_break DATE,
+    ibreak BOOLEAN NOT NULL, -- models if the user have broken the case
+    serial_code Sstring NOT NULL DEFAULT 'missing_serial', -- internal serial. May be null due to lack of information.
+    -- UNIQUE (serial_code, company), -- nope. by doing so we couldn't have twice the same graded card
+    FOREIGN KEY (collectable) REFERENCES Collectable(id) ON DELETE CASCADE,
+    FOREIGN KEY (company) REFERENCES GradingCompany(name)
+);
+
+-- Subvote table
+CREATE TABLE Subvote (
+    name SString PRIMARY KEY
+);
+
+-- gradCompanySubvote table
+CREATE TABLE gradCompanySubvote (
+    sub SString NOT NULL,
+    grading_company SString NOT NULL,
+    PRIMARY KEY (sub, grading_company),
+    FOREIGN KEY (sub) REFERENCES Subvote(name),
+    FOREIGN KEY (grading_company) REFERENCES GradingCompany(name)
+);
+
+-- Source table
+CREATE TABLE Source (
+    name MString PRIMARY KEY
+);
+
+-- TODO: check if a collectable transaction can live without any acquired/disposed collectable
+CREATE TABLE CollectableTransaction (
+    id SERIAL PRIMARY KEY,
+    date DATE NOT NULL,
+    source Mstring NOT NULL DEFAULT 'default_source',
+    counterparty Sstring NOT NULL DEFAULT 'default_counterpart',
+    comment LString,
+    FOREIGN KEY (source) REFERENCES Source(name),
+    FOREIGN KEY (counterparty) REFERENCES Counterparty(name)
+);
+
+CREATE TABLE Artist (
+    name Sstring PRIMARY KEY
+);
+
+-- Models altered (ie custom) cards that have the 'base' of a legit card. For completely custom cards refers to the dedicated expansion row.
+CREATE TABLE AlteredCardInstance (
+    card INTEGER PRIMARY KEY,
+    comment Mstring,
+    alterer Sstring NOT NULL,
+    FOREIGN KEY (card) REFERENCES CardInstance(card),
+    FOREIGN KEY (alterer) REFERENCES Artist(name)
+);
+
+-- acquiredCollectable table
+CREATE TABLE acquiredCollectable (
+    collectable INTEGER PRIMARY KEY,
+    transaction INTEGER NOT NULL,
+    purchase_amount Money NOT NULL,
+    shipping_costs Money NOT NULL,
+    tax_costs Money NOT NULL,
+    refund INTEGER,
+    UNIQUE (refund),
+    FOREIGN KEY (collectable) REFERENCES Collectable(id),
+    FOREIGN KEY (transaction) REFERENCES CollectableTransaction(id)
+);
+
+CREATE TABLE RefundReceived (
+    id SERIAL PRIMARY KEY,
+    collectable INTEGER NOT NULL,
+    UNIQUE(collectable),
+    compensation Money NOT NULL,
+    refund_reason MString NOT NULL,
+    date DATE NOT NULL,
+    returned BOOLEAN NOT NULL,
+    comment LString,
+    FOREIGN KEY (collectable) REFERENCES acquiredCollectable(collectable) ON DELETE CASCADE
+);
+
+-- CIRCULAR KEY
+ALTER TABLE acquiredCollectable
+ADD CONSTRAINT fk_acquiredCollectable_refund
+FOREIGN KEY (refund) REFERENCES RefundReceived(id);
+
+-- SellingCollectable table
+CREATE TABLE SellingCollectable (
+    collectable INTEGER PRIMARY KEY,
+    date DATE NOT NULL,
+    FOREIGN KEY (collectable) REFERENCES Collectable(id)
+);
+
+-- disposedCollectable table
+CREATE TABLE disposedCollectable (
+    collectable INTEGER PRIMARY KEY,
+    transaction INTEGER NOT NULL,
+    amount_received Money NOT NULL,
+    refund INTEGER,
+    UNIQUE (refund),
+    FOREIGN KEY (collectable) REFERENCES SellingCollectable(collectable) ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (transaction) REFERENCES CollectableTransaction(id)
+);
+
+-- RefundIssued table
+-- NOTE: if a new collectable is introduced, implement a new constraint that checks if the collectable returned is the same as the one disposed
+CREATE TABLE RefundIssued (
+    id SERIAL PRIMARY KEY,
+    collectable INTEGER NOT NULL,
+    compensation Money NOT NULL,
+    refund_reason MString NOT NULL,
+    date DATE NOT NULL,
+    comment LString,
+    collectable_returned INTEGER,
+    UNIQUE (collectable_returned), -- it should work with null values
+    FOREIGN KEY (collectable) REFERENCES disposedCollectable(collectable),
+    FOREIGN KEY (collectable_returned) REFERENCES Collectable(id) ON DELETE CASCADE
+);
+
+-- CIRCULAR KEY
+ALTER TABLE disposedCollectable
+ADD CONSTRAINT fk_adisposedCollectable_refund
+FOREIGN KEY (refund) REFERENCES RefundIssued(id);
+
+CREATE TABLE gradedSubvote (
+    graded INTEGER NOT NULL,
+    company SString NOT NULL,
+    sub SString NOT NULL,
+    PRIMARY KEY (graded, company, sub), -- a graded collectable is an instance of a particular card with a specific case. It can be regraded
+    vote GradingVote NOT NULL,
+    FOREIGN KEY (company, sub) REFERENCES gradCompanySubvote(grading_company, sub),
+    FOREIGN KEY (graded) REFERENCES GradedCollectable(id)
+);
+
+-- acquiredShippingLost table. Models acquired collectables lost during the shipping
+CREATE TABLE acquiredShippingLost (
+    collectable INTEGER PRIMARY KEY,
+    comment LString,
+    FOREIGN KEY (collectable) REFERENCES acquiredCollectable(collectable)
+);
+
+-- disposedShippingLost table. Models sold collectables lost during the shipping
+CREATE TABLE disposedShippingLost (
+    collectable INTEGER PRIMARY KEY,
+    comment LString,
+    FOREIGN KEY (collectable) REFERENCES disposedCollectable(collectable)
+);
+
+CREATE TABLE NotAvailable (
+    collectable INTEGER NOT NULL,
+    from_date DATE NOT NULL,
+    PRIMARY KEY (collectable, from_date),
+    to_date DATE,
+    comment LString,
+    FOREIGN KEY (collectable) REFERENCES Collectable(id),
+    CONSTRAINT check_to_after_date CHECK (to_date IS NULL OR to_date >= from_date)
+);
+
+-- CollectablePhoto table
+CREATE TABLE CollectablePhoto (
+    collectable INTEGER NOT NULL,
+    photo BYTEA NOT NULL, -- BYTEA is used to store binary data (an image in this case)
+    PRIMARY KEY (collectable, photo),
+    FOREIGN KEY (collectable) REFERENCES Collectable(id)
+);
+
+-- FactoryError table
+CREATE TABLE FactoryError (
+    name Sstring PRIMARY KEY
+);
+
+-- cardFactoryError table
+CREATE TABLE cardFactoryError (
+    card INTEGER NOT NULL,
+    error Sstring NOT NULL,
+    comment Mstring,
+    PRIMARY KEY (card, error),
+    FOREIGN KEY (card) REFERENCES CardInstance(card),
+    FOREIGN KEY (error) REFERENCES FactoryError(name)
+);
+
+-- Autographed table
+CREATE TABLE Autographed (
+    collectable INTEGER PRIMARY KEY,
+    comment MString,
+    auto_signer INTEGER NOT NULL,
+    FOREIGN KEY (collectable) REFERENCES Collectable(id)
+);
+
+-- Signer table
+CREATE TABLE Signer (
+    name Sstring PRIMARY KEY
+);
+
+-- autoSigner table
+CREATE TABLE autoSigner (
+    id SERIAL PRIMARY KEY,
+    autographed_collectable INTEGER NOT NULL,
+    iautographed BOOLEAN NOT NULL,
+    signer Sstring NOT NULL,
+    UNIQUE (autographed_collectable, signer),
+    FOREIGN KEY (autographed_collectable) REFERENCES Autographed(collectable) ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (signer) REFERENCES Signer(name)
+);
+
+-- So that the circular fk works
+ALTER TABLE Autographed
+ADD CONSTRAINT fk_autoSigner_autographed
+FOREIGN KEY (auto_signer) REFERENCES autoSigner(id)
+DEFERRABLE INITIALLY DEFERRED;
+
+-- autoGraded table
+-- models autographed that are graded with a vote. autographs on cases are in the autographed table, not here
+CREATE TABLE autoGraded (
+    autographed_collectable INTEGER NOT NULL,
+    graded INTEGER NOT NULL,
+    vote GradingVote NOT NULL,
+    PRIMARY KEY (autographed_collectable, graded),
+    FOREIGN KEY (autographed_collectable) REFERENCES Autographed(collectable),
+    FOREIGN KEY (graded) REFERENCES GradedCollectable(id)
+);
+
+-- kilocards models the total 'inventory' of the kilo cards that we have had. Since kilocards are cumulable, we don't need the date in which they were first acquired since it doesn't carry any meaningful information.
+-- KiloCards table
+-- Models kilo cards per generation
+CREATE TABLE KiloCards (
+    kilocards_gen Mstring PRIMARY KEY,
+    kilos Weight NOT NULL, -- This models the total weight of the cards! To compute the current weight, just query all these minus all the sold of the same generation.
+    FOREIGN KEY (kilocards_gen) REFERENCES Generation(name)
+);
+
+-- SellingCollectableKiloCards table
+-- contrary to kilocards, the date on SellingCollectablekilocards might be useful
+-- models SellingCollectable kilo cards per generation
+CREATE TABLE SellingKiloCards (
+    id SERIAL PRIMARY KEY, -- i can sell multiple times the same kilo cards. IE: i sell today 2kg of sun&moon and tomorrow i sell 3kg of the same generation.
+    kilocards Mstring NOT NULL,
+    kilos Weight NOT NULL, 
+    date DATE NOT NULL,
+    CONSTRAINT kilos_gt_zero CHECK (kilos > 0),
+    FOREIGN KEY (kilocards) REFERENCES KiloCards(kilocards_gen) ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- models acquired kilo cards per generation
+-- TODO FUTURE: acquiredkilocards lost during shipping
+CREATE TABLE acquiredKiloCards (
+    kilocards Mstring NOT NULL,
+    transaction INTEGER NOT NULL,
+    kilos Weight NOT NULL,
+    PRIMARY KEY (kilocards, transaction),
+    purchase_amount Money NOT NULL, 
+    shipping_costs Money NOT NULL,
+    CONSTRAINT kilos_gt_zero CHECK (kilos > 0),
+    FOREIGN KEY (kilocards) REFERENCES KiloCards(kilocards_gen),
+    FOREIGN KEY (transaction) REFERENCES CollectableTransaction(id)
+);
+
+-- disposedKiloCards table
+-- models disposed kilo cards per generation
+-- TODO FUTURE: disposedKiloCards lost during shipping
+CREATE TABLE disposedKiloCards (
+    selling_kilocards INTEGER NOT NULL,
+    transaction INTEGER NOT NULL,
+    PRIMARY KEY (kilocards, transaction),
+    amount_received Money NOT NULL,
+    CONSTRAINT kilos_gt_zero CHECK (kilos > 0),
+    FOREIGN KEY (selling_kilocards) REFERENCES SellingKiloCards(id),
+    FOREIGN KEY (transaction) REFERENCES CollectableTransaction(id)
+);
