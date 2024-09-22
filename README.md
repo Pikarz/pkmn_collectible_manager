@@ -1,13 +1,13 @@
 pkmn_collectible_manager
 
-Welcome to the pkmn_collectible_manager project, my ultimate companion in efficiently organizing, tracking, and managing my Pokemon card collection. As of November 11, 2023, this project offers a robust solution to streamline the processes of buying, selling, and cataloging Pokemon cards.
+Welcome to the pkmn_collectible_manager project, my ultimate companion in efficiently organizing, tracking, and managing my Pokemon card collection. This project offers a robust solution to streamline the processes of buying, selling, and cataloging Pokemon cards.
 Features:
 
     Inventory Management:
-    Effortlessly keep track of my Pokemon card inventory, ensuring I have a comprehensive overview of your collection at all times.
+    Effortlessly keep track of my Pokemon card inventory, ensuring I have a comprehensive overview of my collection at all times.
 
     Transaction History:
-    Log and analyze your buying and selling activities to gain insights into my collection's growth and optimize future transactions.
+    Analyze my buying and selling activities to gain insights into my collection's growth and optimize future transactions.
 
     Data Visualization:
     Utilize interactive charts and graphs to visually represent my collection's composition, trends, and other insightful metrics.
