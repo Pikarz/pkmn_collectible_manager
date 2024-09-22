@@ -1,71 +1,82 @@
 import React, { useEffect } from 'react';
-import './App.css';
+import { ThemeProvider, createTheme } from '@mui/material/styles';
+import CssBaseline from '@mui/material/CssBaseline';
+import './App.css'; 
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import Sidebar from './components/Sidebar';
-import ExpansionList from './components/ExpansionList';
-import Collection from './components/Collection';
-import AddCard from './components/AddCard';
-import SellingCards from './components/SellingCards';
-import CardInsertionForm from './components/CardInsertionForm';
-import SellingSummary from './components/SellingSummary';
-import SoldCards from './components/SoldCards';
-import LastSold from './components/LastSold';
-import { DarkModeProvider, useDarkMode } from './DarkModeContext';
+import CardInsertionForm from './components/ManageCards/Inserting/CardInsertionForm';
+import Trade from './components/ManageCards/Trading/Trade';
+import Transactions from './components/Transactions/Transactions';
+import HomeButtons from './components/Navigation/HomeButtons';
+import Stats from './components/Stats/Stats';
 import { useLocation } from 'react-router-dom';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import ManageCards from './components/ManageCards/ManageCards';
+import PendingCards from './components/ManageCards/PendingCards';
+import CardListing from './components/ManageCards/Sell/CardListing';
+import CardSelling from './components/ManageCards/Sell/CardSelling';
+import Header from './components/Navigation/header';
+import Footer from './components/Navigation/Footer';
 
 function App() {
-  const { darkMode, toggleDarkMode } = useDarkMode();
-
-  const handleDarkModeToggle = () => {
-    toggleDarkMode();
-  };
+  const theme = createTheme({
+    typography: {
+      fontFamily: 'Roboto, sans-serif',
+    },
+  });
 
   return (
-      <Router>
-        <Sidebar />
-        <div className="content">
-          <div className="header">
-            <h1>PokéCards</h1>
-          </div>
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/my-collection" element={<Collection/>} />
-            <Route path="/selecting-cards" element={<AddCard />} />
-            { /*<Route path="/selecting-cards/inserting" element={<InsertCards />} />*/}
-            <Route path="/expansions" element={<ExpansionList />} />
-            {/* Add more routes for other functionalities */}
-            <Route path="/selecting-cards/inserting" element={<CardInsertionForm />} />
-            <Route path="/insert-selling-cards" element={<SellingCards />} />
-            <Route path="/insert-selling-cards/selling-summary" element={<SellingSummary />} />
-            <Route path="/isold" element={<SoldCards />} />
-            <Route path="/isold/sold-summary" element={<SellingSummary />} />
-            <Route path="/last-sold" element={<LastSold />} />
-          </Routes>
-        </div>
-      </Router>
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+        <Router>
+          <Header />
+          <div className={"content"}>
+            <Routes>
+          <Route path="/" element={<Home />} />
+          <Route
+            path="/my-collection"
+            element={<ManageCards isCollection={true} />}
+          />
+          <Route
+            path="/selecting-cards"
+            element={<ManageCards isCollection={false} />}
+          />
+          <Route
+            path="/selecting-cards/inserting"
+            element={<CardInsertionForm />}
+          />
+          <Route path="/insert-selling-cards" element={<CardListing />} />
+          <Route path="/isold" element={<CardSelling />} />
+          <Route path="/new-trade" element={<Trade />} />
+          <Route path="/transactions" element={<Transactions />} />
+          <Route path="/stats" element={<Stats />} />
+        </Routes>
+        <Footer />
+      </div>
+    </Router>
+  </ThemeProvider>
   );
 }
 
 function Home() {
   const location = useLocation();
   const queryParams = new URLSearchParams(location.search);
-  const showSuccessToast = queryParams.get('showSuccessToast')
-  const message = queryParams.get('message')
-  // Display the toast in the Home component
+  const showSuccessToast = queryParams.get('showSuccessToast');
+  const message = queryParams.get('message');
 
   useEffect(() => {
     if (showSuccessToast) {
       toast.success(message);
     }
-  }, [showSuccessToast]);
-
+  }, );
 
   return (
     <div>
-        <h2>Welcome to PokéCards</h2>
-        <ToastContainer autoClose={3000} position="bottom-center" />
+      <h2>Welcome to CardMaster!</h2>
+      <p>Your ultimate tool for managing Pokemon TCG cards.</p>
+      <ToastContainer autoClose={3000} position="bottom-center" />
+      <PendingCards />
+      <HomeButtons />
     </div>
   );
 }
